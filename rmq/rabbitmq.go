@@ -49,7 +49,7 @@ func (r *Retry) HandleEvent(event ziggurat.Event) ziggurat.ProcessStatus {
 func (r *Retry) Retrier(handler ziggurat.Handler) ziggurat.Handler {
 	return ziggurat.HandlerFunc(func(messageEvent ziggurat.Event) ziggurat.ProcessStatus {
 		if r.dialer == nil {
-			panic("dialer nil error: please start the call the `RunPublisher` method")
+			panic("dialer nil error: run the `RunPublisher` method")
 		}
 		status := handler.HandleEvent(messageEvent)
 		if status == ziggurat.RetryMessage {
@@ -181,6 +181,7 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	}
 	return nil
 }
+
 //func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) chan error {
 //	errChan := make(chan error)
 //	err := r.RunConsumers(ctx, handler)
