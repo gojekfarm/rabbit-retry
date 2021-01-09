@@ -181,15 +181,3 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	}
 	return nil
 }
-
-//func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) chan error {
-//	errChan := make(chan error)
-//	err := r.RunConsumers(ctx, handler)
-//	if err != nil {
-//		go func() {
-//			errChan <- err
-//		}()
-//		return errChan
-//	}
-//	return errChan
-//}
