@@ -8,6 +8,6 @@ if [ "$BRANCH_NAME" != "main" ]; then
 fi
 
 VERSION="$1"
-printf "releasing %s" "$VERSION"
+printf "releasing %s\n" "$VERSION"
 git tag "$VERSION"
 git push origin main --tags
