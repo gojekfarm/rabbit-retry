@@ -19,8 +19,7 @@ func main() {
 				RetryCount:               5,
 				DelayQueueExpirationInMS: "500",
 			},
-		},
-		nil)
+		}, nil)
 	kafkaStreams := &kafka.Streams{
 		RouteGroup: kafka.RouteGroup{
 			"plain-text-log": {
