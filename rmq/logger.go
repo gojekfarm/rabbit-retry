@@ -1,4 +1,4 @@
-package retry
+package rmq
 
 type LoggerFunc func()
 
