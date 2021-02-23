@@ -3,8 +3,8 @@ github.com/confluentinc/confluent-kafka-go v1.5.2/go.mod h1:u2zNLny2xq+5rWeTQjFH
 github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/gojekfarm/ziggurat v1.0.0-alpha.11 h1:TYiERq2sNhCE8q9SzgQ9lFcMymNLdNuXDK1v7TYsor0=
-github.com/gojekfarm/ziggurat v1.0.0-alpha.11/go.mod h1:F4Qxm47LOgn2Vp+eKUGo7aH8x/Cvzn72eDLtGIhKs+0=
+github.com/gojekfarm/ziggurat v1.0.0-alpha.15 h1:mCrSlY83U5dKTHNabihEbS/HHW2tAhSKd8NuW2qH+u8=
+github.com/gojekfarm/ziggurat v1.0.0-alpha.15/go.mod h1:F4Qxm47LOgn2Vp+eKUGo7aH8x/Cvzn72eDLtGIhKs+0=
 github.com/golang/mock v1.4.4 h1:l75CXGRSwbaYNpl/Z2X1XIIAMSCquvXgpVZDhwEIJsc=
 github.com/golang/mock v1.4.4/go.mod h1:l3mdAwkq5BuhzHwde/uurv3sEJeZMXNpwsxVWU71h+4=
 github.com/golang/protobuf v1.4.0-rc.1/go.mod h1:ceaxUfeHdC40wWswd/P6IGgMaK3YpKi5j83Wpe3EHw8=
