@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type QueueConfig map[string]*struct {
+type RabbitMQConfig map[string]struct {
 	RetryCount               int
 	DelayQueueExpirationInMS string
 }
@@ -21,15 +21,15 @@ type Retry struct {
 	dialer         *amqpextra.Dialer
 	consumerDialer *amqpextra.Dialer
 	handler        ziggurat.Handler
-	queueConfig    QueueConfig
+	config         RabbitMQConfig
 	logger         ziggurat.StructuredLogger
 }
 
-func New(hosts []string, queueConfig QueueConfig, logger ziggurat.StructuredLogger) *Retry {
+func New(hosts []string, queueConfig RabbitMQConfig, logger ziggurat.StructuredLogger) *Retry {
 	r := &Retry{
-		hosts:       hosts,
-		queueConfig: queueConfig,
-		logger:      logger,
+		hosts:  hosts,
+		config: queueConfig,
+		logger: logger,
 	}
 	if r.logger == nil {
 		r.logger = LoggerFunc(func() {})
@@ -37,26 +37,27 @@ func New(hosts []string, queueConfig QueueConfig, logger ziggurat.StructuredLogg
 	return r
 }
 
-func (r *Retry) HandleEvent(event ziggurat.Event) ziggurat.ProcessStatus {
-	status := r.handler.HandleEvent(event)
-	if status == ziggurat.RetryMessage {
-		err := r.retry(event)
+func (r *Retry) HandleEvent(event ziggurat.Event, ctx context.Context) error {
+	err, ok := (r.handler.HandleEvent(ctx, event)).(ziggurat.ErrProcessingFailed)
+	if ok && err.Action == "retry" {
+		err := r.retry(event, ctx)
 		r.logger.Error("error retrying message", err)
 	}
-	return status
+	return err
 }
 
 func (r *Retry) Retrier(handler ziggurat.Handler) ziggurat.Handler {
-	return ziggurat.HandlerFunc(func(messageEvent ziggurat.Event) ziggurat.ProcessStatus {
+	return ziggurat.HandlerFunc(func(ctx context.Context, messageEvent ziggurat.Event) error {
 		if r.dialer == nil {
 			panic("dialer nil error: run the `RunPublisher` method")
 		}
-		status := handler.HandleEvent(messageEvent)
-		if status == ziggurat.RetryMessage {
-			err := r.retry(messageEvent)
-			r.logger.Error("error retrying message", err)
+
+		err, ok := (handler.HandleEvent(ctx, messageEvent)).(ziggurat.ErrProcessingFailed)
+		if ok && err.Action == "retry" {
+			retryErr := r.retry(messageEvent, ctx)
+			r.logger.Error("error retrying message", retryErr)
 		}
-		return status
+		return err
 	})
 }
 
@@ -64,31 +65,42 @@ func (r *Retry) RunPublisher(ctx context.Context) error {
 	return r.initPublisher(ctx)
 }
 
-func (r *Retry) RunConsumers(ctx context.Context, handler ziggurat.Handler) error {
+func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) chan error {
 	consumerDialer, dialErr := amqpextra.NewDialer(
 		amqpextra.WithContext(ctx),
 		amqpextra.WithURL(r.hosts...))
+	errChan := make(chan error)
 	if dialErr != nil {
-		return dialErr
+		go func() {
+			errChan <- dialErr
+		}()
+		return errChan
 	}
 	r.consumerDialer = consumerDialer
-	for routeName, _ := range r.queueConfig {
+	consumerCloseChans := make([]<-chan struct{}, 0, len(r.config))
+	for routeName, _ := range r.config {
 		queueName := constructQueueName(routeName, "instant")
 		ctag := fmt.Sprintf("%s_%s_%s", queueName, "ziggurat", "ctag")
 		c, err := createConsumer(ctx, r.consumerDialer, ctag, queueName, handler, r.logger)
 		if err != nil {
-
+			go func() {
+				errChan <- err
+			}()
+			return errChan
 		}
+		consumerCloseChans = append(consumerCloseChans, c.NotifyClosed())
 		go func() {
-			<-c.NotifyClosed()
-			r.logger.Error("consumer closed", nil)
+			for _, c := range consumerCloseChans {
+				<-c
+			}
+			errChan <- nil
 		}()
 	}
-	return nil
+	return errChan
 }
 
-func (r *Retry) retry(event ziggurat.Event) error {
-	pub, pubCreateError := r.dialer.Publisher(publisher.WithContext(event.Context()))
+func (r *Retry) retry(event ziggurat.Event, ctx context.Context) error {
+	pub, pubCreateError := r.dialer.Publisher(publisher.WithContext(ctx))
 	if pubCreateError != nil {
 		return pubCreateError
 	}
@@ -105,17 +117,16 @@ func (r *Retry) retry(event ziggurat.Event) error {
 		payload = RabbitMQPayload{
 			MessageVal:     event.Value(),
 			MessageHeaders: event.Headers(),
-			ctx:            event.Context(),
 			RetryCount:     0,
 		}
 	}
 
-	if payload.RetryCount >= r.queueConfig[string(routeName)].RetryCount {
+	if payload.RetryCount >= r.config[routeName].RetryCount {
 		message.Exchange = constructExchangeName(routeName, "dead_letter")
 		publishing.Expiration = ""
 	} else {
 		message.Exchange = constructExchangeName(routeName, "delay")
-		publishing.Expiration = r.queueConfig[routeName].DelayQueueExpirationInMS
+		publishing.Expiration = r.config[routeName].DelayQueueExpirationInMS
 		payload.RetryCount = payload.RetryCount + 1
 	}
 
@@ -160,7 +171,7 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	queueTypes := []string{"instant", "delay", "dead_letter"}
 	for _, queueType := range queueTypes {
 		var args amqp.Table
-		for route, _ := range r.queueConfig {
+		for route, _ := range r.config {
 			if queueType == "delay" {
 				args = amqp.Table{"x-dead-letter-exchange": constructExchangeName(route, "instant")}
 			}

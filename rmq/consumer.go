@@ -41,8 +41,7 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 				l.Error("error decoding message", err)
 				return msg.Reject(true)
 			}
-			msgEvent.ctx = ctx
-			msgHandler.HandleEvent(msgEvent)
+			msgHandler.HandleEvent(ctx, msgEvent)
 			return msg.Ack(false)
 		}))}
 	return d.Consumer(options...)

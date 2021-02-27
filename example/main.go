@@ -1,5 +1,3 @@
-//+build ignore
-
 package main
 
 import (
@@ -14,35 +12,40 @@ import (
 
 func main() {
 	l := logger.NewJSONLogger("info")
+	ctx := context.Background()
 	rabbitMQ := rmq.New(
 		[]string{"amqp://user:bitnami@localhost:5672"},
-		rmq.QueueConfig{
+		rmq.RabbitMQConfig{
 			"plain-text-log": {
-				RetryCount:               5,
+				RetryCount:               2,
 				DelayQueueExpirationInMS: "500",
 			},
-		}, nil)
+		}, l)
+
 	kafkaStreams := &kafka.Streams{
-		RouteGroup: kafka.RouteGroup{
-			"plain-text-log": {
-				BootstrapServers: "localhost:9092",
-				OriginTopics:     "plain-text-log",
-				ConsumerGroupID:  "plain_text_consumer",
-				ConsumerCount:    1,
-			},
-		},
+		StreamConfig: kafka.StreamConfig{{
+			BootstrapServers: "localhost:9092",
+			ConsumerCount:    1,
+			OriginTopics:     "plain-text-log",
+			ConsumerGroupID:  "plain_text_consumer",
+			RouteGroup:       "plain-text-log",
+		}},
 		Logger: l,
 	}
 	r := router.New()
-	r.HandleFunc("plain-text-log", func(event ziggurat.Event) ziggurat.ProcessStatus {
-		return ziggurat.RetryMessage
+
+	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) error {
+		return ziggurat.ErrProcessingFailed{Action: "retry"}
 	})
 	statusLogger := mw.ProcessingStatusLogger{Logger: l}
 	handler := r.Compose(rabbitMQ.Retrier, statusLogger.LogStatus)
-	z := &ziggurat.Ziggurat{}
-	z.StartFunc(func(ctx context.Context) {
-		rabbitMQ.RunPublisher(ctx)
-		rabbitMQ.RunConsumers(ctx, handler)
-	})
-	<-z.Run(context.Background(), kafkaStreams, handler)
+
+	zigKafka := &ziggurat.Ziggurat{}
+	zigRabbit := &ziggurat.Ziggurat{}
+
+	rabbitMQ.RunPublisher(ctx)
+	kafkaErrChan := zigKafka.Run(ctx, kafkaStreams, handler)
+	rmqErrChan := zigRabbit.Run(ctx, rabbitMQ, handler)
+	ziggurat.Join(kafkaErrChan, rmqErrChan)
+
 }
