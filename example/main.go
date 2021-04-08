@@ -1,8 +1,9 @@
+//+build ignore
+
 package main
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/gojekfarm/ziggurat"
@@ -14,7 +15,7 @@ import (
 )
 
 func main() {
-	l := logger.NewJSONLogger("info")
+	l := logger.NewJSONLogger(logger.LevelInfo)
 	ctx := context.Background()
 	rabbitMQ := rmq.New(
 		[]string{"amqp://user:bitnami@localhost:5672"},
@@ -46,17 +47,16 @@ func main() {
 	zigKafka := &ziggurat.Ziggurat{}
 	zigRabbit := &ziggurat.Ziggurat{}
 
-	rabbitMQ.RunPublisher(ctx)
+	l.Error("error starting publishers", rabbitMQ.RunPublisher(ctx))
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		err := zigKafka.Run(ctx, kafkaStreams, handler)
-		fmt.Println(err)
+		l.Error("", zigKafka.Run(ctx, kafkaStreams, handler))
 		wg.Done()
 	}()
 	go func() {
-		err := zigRabbit.Run(ctx, rabbitMQ, handler)
-		fmt.Println(err)
+		l.Error("", zigRabbit.Run(ctx, rabbitMQ, handler))
 		wg.Done()
 	}()
 	wg.Wait()
