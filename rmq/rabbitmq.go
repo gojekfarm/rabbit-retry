@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/makasim/amqpextra/consumer"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/makasim/amqpextra/consumer"
 
 	"github.com/gojekfarm/ziggurat"
 	"github.com/makasim/amqpextra"
