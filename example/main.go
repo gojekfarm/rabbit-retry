@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"sync"
+
 	"github.com/gojekfarm/ziggurat"
 	"github.com/gojekfarm/ziggurat-rabbitmq/rmq"
 	"github.com/gojekfarm/ziggurat/kafka"
@@ -44,8 +47,17 @@ func main() {
 	zigRabbit := &ziggurat.Ziggurat{}
 
 	rabbitMQ.RunPublisher(ctx)
-	kafkaErrChan := zigKafka.Run(ctx, kafkaStreams, handler)
-	rmqErrChan := zigRabbit.Run(ctx, rabbitMQ, handler)
-	ziggurat.Join(kafkaErrChan, rmqErrChan)
-
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		err := zigKafka.Run(ctx, kafkaStreams, handler)
+		fmt.Println(err)
+		wg.Done()
+	}()
+	go func() {
+		err := zigRabbit.Run(ctx, rabbitMQ, handler)
+		fmt.Println(err)
+		wg.Done()
+	}()
+	wg.Wait()
 }

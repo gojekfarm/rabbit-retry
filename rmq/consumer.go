@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+
 	"github.com/gojekfarm/ziggurat"
 	"github.com/makasim/amqpextra"
 	"github.com/makasim/amqpextra/consumer"
@@ -41,7 +42,7 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 				l.Error("error decoding message", err)
 				return msg.Reject(true)
 			}
-			msgHandler.HandleEvent(ctx, msgEvent)
+			msgHandler.Handle(ctx, msgEvent)
 			return msg.Ack(false)
 		}))}
 	return d.Consumer(options...)

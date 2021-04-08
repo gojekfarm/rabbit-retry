@@ -2,13 +2,17 @@ package rmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/makasim/amqpextra/consumer"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/gojekfarm/ziggurat"
 	"github.com/makasim/amqpextra"
 	"github.com/makasim/amqpextra/publisher"
 	"github.com/streadway/amqp"
-	"strings"
-	"time"
 )
 
 type RabbitMQConfig map[string]struct {
@@ -37,10 +41,10 @@ func New(hosts []string, queueConfig RabbitMQConfig, logger ziggurat.StructuredL
 	return r
 }
 
-func (r *Retry) HandleEvent(event ziggurat.Event, ctx context.Context) error {
-	err, ok := (r.handler.HandleEvent(ctx, event)).(ziggurat.ErrProcessingFailed)
+func (r *Retry) Handle(ctx context.Context, event ziggurat.Event) error {
+	err, ok := (r.handler.Handle(ctx, event)).(ziggurat.ErrProcessingFailed)
 	if ok && err.Action == "retry" {
-		err := r.retry(event, ctx)
+		err := r.retry(ctx, event)
 		r.logger.Error("error retrying message", err)
 	}
 	return err
@@ -52,9 +56,9 @@ func (r *Retry) Retrier(handler ziggurat.Handler) ziggurat.Handler {
 			panic("dialer nil error: run the `RunPublisher` method")
 		}
 
-		err, ok := (handler.HandleEvent(ctx, messageEvent)).(ziggurat.ErrProcessingFailed)
+		err, ok := (handler.Handle(ctx, messageEvent)).(ziggurat.ErrProcessingFailed)
 		if ok && err.Action == "retry" {
-			retryErr := r.retry(messageEvent, ctx)
+			retryErr := r.retry(ctx, messageEvent)
 			r.logger.Error("error retrying message", retryErr)
 		}
 		return err
@@ -65,41 +69,41 @@ func (r *Retry) RunPublisher(ctx context.Context) error {
 	return r.initPublisher(ctx)
 }
 
-func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) chan error {
+func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 	consumerDialer, dialErr := amqpextra.NewDialer(
 		amqpextra.WithContext(ctx),
 		amqpextra.WithURL(r.hosts...))
-	errChan := make(chan error)
 	if dialErr != nil {
-		go func() {
-			errChan <- dialErr
-		}()
-		return errChan
+		return dialErr
 	}
+	var wg sync.WaitGroup
 	r.consumerDialer = consumerDialer
-	consumerCloseChans := make([]<-chan struct{}, 0, len(r.config))
+	consumers := make([]*consumer.Consumer, 0, len(r.config))
 	for routeName, _ := range r.config {
 		queueName := constructQueueName(routeName, "instant")
 		ctag := fmt.Sprintf("%s_%s_%s", queueName, "ziggurat", "ctag")
 		c, err := createConsumer(ctx, r.consumerDialer, ctag, queueName, handler, r.logger)
 		if err != nil {
-			go func() {
-				errChan <- err
-			}()
-			return errChan
+			return err
 		}
-		consumerCloseChans = append(consumerCloseChans, c.NotifyClosed())
+		consumers = append(consumers, c)
+		wg.Add(1)
 		go func() {
-			for _, c := range consumerCloseChans {
-				<-c
-			}
-			errChan <- nil
+			<-c.NotifyClosed()
+			wg.Done()
 		}()
+		if len(consumers) != len(r.config) {
+			for _, c := range consumers {
+				c.Close()
+			}
+			return errors.New("error: couldn't start all consumers")
+		}
+		wg.Wait()
 	}
-	return errChan
+	return nil
 }
 
-func (r *Retry) retry(event ziggurat.Event, ctx context.Context) error {
+func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
 	pub, pubCreateError := r.dialer.Publisher(publisher.WithContext(ctx))
 	if pubCreateError != nil {
 		return pubCreateError
