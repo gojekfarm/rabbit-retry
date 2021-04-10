@@ -19,7 +19,7 @@ func main() {
 	ctx := context.Background()
 	rabbitMQ := rmq.New(
 		[]string{"amqp://user:bitnami@localhost:5672"},
-		rmq.RabbitMQConfig{
+		rmq.QueueConfig{
 			"plain-text-log": {
 				RetryCount:               2,
 				DelayQueueExpirationInMS: "500",

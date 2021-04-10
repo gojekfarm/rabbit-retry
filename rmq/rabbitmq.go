@@ -16,25 +16,35 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type RabbitMQConfig map[string]struct {
+type QueueConfig map[string]struct {
 	RetryCount               int
 	DelayQueueExpirationInMS string
 }
+
+type Opts func(r *Retry)
 
 type Retry struct {
 	hosts          []string
 	dialer         *amqpextra.Dialer
 	consumerDialer *amqpextra.Dialer
 	handler        ziggurat.Handler
-	config         RabbitMQConfig
+	qconf          QueueConfig
 	logger         ziggurat.StructuredLogger
 }
 
-func New(hosts []string, queueConfig RabbitMQConfig, logger ziggurat.StructuredLogger) *Retry {
+func WithLogger(l ziggurat.StructuredLogger) Opts {
+	return func(r *Retry) {
+		r.logger = l
+	}
+}
+
+func New(hosts []string, queueConfig QueueConfig, opts ...Opts) *Retry {
 	r := &Retry{
-		hosts:  hosts,
-		config: queueConfig,
-		logger: logger,
+		hosts: hosts,
+		qconf: queueConfig,
+	}
+	for _, opt := range opts {
+		opt(r)
 	}
 	if r.logger == nil {
 		r.logger = LoggerFunc(func() {})
@@ -79,8 +89,8 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 	}
 	var wg sync.WaitGroup
 	r.consumerDialer = consumerDialer
-	consumers := make([]*consumer.Consumer, 0, len(r.config))
-	for routeName, _ := range r.config {
+	consumers := make([]*consumer.Consumer, 0, len(r.qconf))
+	for routeName, _ := range r.qconf {
 		queueName := constructQueueName(routeName, "instant")
 		ctag := fmt.Sprintf("%s_%s_%s", queueName, "ziggurat", "ctag")
 		c, err := createConsumer(ctx, r.consumerDialer, ctag, queueName, handler, r.logger)
@@ -93,7 +103,7 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 			<-c.NotifyClosed()
 			wg.Done()
 		}()
-		if len(consumers) != len(r.config) {
+		if len(consumers) != len(r.qconf) {
 			for _, c := range consumers {
 				c.Close()
 			}
@@ -126,12 +136,12 @@ func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
 		}
 	}
 
-	if payload.RetryCount >= r.config[routeName].RetryCount {
+	if payload.RetryCount >= r.qconf[routeName].RetryCount {
 		message.Exchange = constructExchangeName(routeName, "dead_letter")
 		publishing.Expiration = ""
 	} else {
 		message.Exchange = constructExchangeName(routeName, "delay")
-		publishing.Expiration = r.config[routeName].DelayQueueExpirationInMS
+		publishing.Expiration = r.qconf[routeName].DelayQueueExpirationInMS
 		payload.RetryCount = payload.RetryCount + 1
 	}
 
@@ -176,7 +186,7 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	queueTypes := []string{"instant", "delay", "dead_letter"}
 	for _, queueType := range queueTypes {
 		var args amqp.Table
-		for route, _ := range r.config {
+		for route, _ := range r.qconf {
 			if queueType == "delay" {
 				args = amqp.Table{"x-dead-letter-exchange": constructExchangeName(route, "instant")}
 			}
