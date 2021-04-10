@@ -100,6 +100,7 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 		wg.Add(1)
 		go func() {
 			<-c.NotifyClosed()
+			r.logger.Info("shutting down rabbitmq consumer", map[string]interface{}{"ctag": ctag})
 			wg.Done()
 		}()
 		if len(consumers) != len(r.qconf) {
