@@ -4,8 +4,9 @@ package main
 
 import (
 	"context"
-	"github.com/gojekfarm/ziggurat/mw/proclog"
 	"sync"
+
+	"github.com/gojekfarm/ziggurat/mw/proclog"
 
 	"github.com/gojekfarm/ziggurat"
 	"github.com/gojekfarm/ziggurat-rabbitmq/rmq"
@@ -23,8 +24,7 @@ func main() {
 			Username:    "user",
 			Password:    "bitnami",
 			QueuePrefix: "example_app",
-			QueueConfig: []rmq.QueueConfig{{DelayQueueExpirationInMS: "2000", RouteKey: "plain-text-log", RetryCount: 2},
-			},
+			QueueConfig: []rmq.QueueConfig{{DelayQueueExpirationInMS: "2000", RouteKey: "plain-text-log", RetryCount: 2}},
 		}, rmq.WithLogger(l))
 
 	kafkaStreams := &kafka.Streams{
