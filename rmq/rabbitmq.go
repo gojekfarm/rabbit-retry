@@ -52,8 +52,8 @@ func New(c *Config, opts ...Opts) *Retry {
 }
 
 func (r *Retry) Handle(ctx context.Context, event ziggurat.Event) error {
-	err, ok := (r.handler.Handle(ctx, event)).(ErrProcessingFailed)
-	if ok {
+	err, ok := (r.handler.Handle(ctx, event)).(ziggurat.ErrProcessingFailed)
+	if ok && err.Action == "retry" {
 		err := r.retry(ctx, event)
 		r.logger.Error("error retrying message", err)
 	}
@@ -66,8 +66,8 @@ func (r *Retry) Retrier(handler ziggurat.Handler) ziggurat.Handler {
 			panic("dialer nil error: run the `RunPublisher` method")
 		}
 
-		err, ok := (handler.Handle(ctx, messageEvent)).(ErrProcessingFailed)
-		if ok {
+		err, ok := (handler.Handle(ctx, messageEvent)).(ziggurat.ErrProcessingFailed)
+		if ok && err.Action == "retry" {
 			retryErr := r.retry(ctx, messageEvent)
 			r.logger.Error("error retrying message", retryErr)
 		}
