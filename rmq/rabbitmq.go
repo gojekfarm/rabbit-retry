@@ -16,11 +16,6 @@ import (
 	"github.com/streadway/amqp"
 )
 
-type QueueConfig map[string]struct {
-	RetryCount               int
-	DelayQueueExpirationInMS string
-}
-
 type Opts func(r *Retry)
 
 type Retry struct {
@@ -28,8 +23,9 @@ type Retry struct {
 	dialer         *amqpextra.Dialer
 	consumerDialer *amqpextra.Dialer
 	handler        ziggurat.Handler
-	qconf          QueueConfig
+	qconf          map[string]QueueConfig
 	logger         ziggurat.StructuredLogger
+	qprefix        string
 }
 
 func WithLogger(l ziggurat.StructuredLogger) Opts {
@@ -38,18 +34,12 @@ func WithLogger(l ziggurat.StructuredLogger) Opts {
 	}
 }
 
-func New(hosts []string, username, password string, queueConfig QueueConfig, opts ...Opts) *Retry {
-
-	amqpStyleURLs := make([]string, 0, len(hosts))
-
-	for _, host := range hosts {
-		url := fmt.Sprintf("amqp://%s:%s@%s", username, password, host)
-		amqpStyleURLs = append(amqpStyleURLs, url)
-	}
+func New(c *Config, opts ...Opts) *Retry {
 
 	r := &Retry{
-		hosts: amqpStyleURLs,
-		qconf: queueConfig,
+		hosts:   c.generateAMQPURLS(),
+		qconf:   c.transformQueueConfig(),
+		qprefix: c.getQPrefix(),
 	}
 
 	for _, opt := range opts {
@@ -99,8 +89,8 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 	var wg sync.WaitGroup
 	r.consumerDialer = consumerDialer
 	consumers := make([]*consumer.Consumer, 0, len(r.qconf))
-	for routeName, _ := range r.qconf {
-		queueName := constructQueueName(routeName, "instant")
+	for routeName := range r.qconf {
+		queueName := constructQueueName(routeName, "instant", r.qprefix)
 		ctag := fmt.Sprintf("%s_%s_%s", queueName, "ziggurat", "ctag")
 		c, err := createConsumer(ctx, r.consumerDialer, ctag, queueName, handler, r.logger)
 		if err != nil {
@@ -146,10 +136,10 @@ func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
 	}
 
 	if payload.RetryCount >= r.qconf[routeName].RetryCount {
-		message.Exchange = constructExchangeName(routeName, "dead_letter")
+		message.Exchange = constructExchangeName(routeName, "dead_letter", r.qprefix)
 		publishing.Expiration = ""
 	} else {
-		message.Exchange = constructExchangeName(routeName, "delay")
+		message.Exchange = constructExchangeName(routeName, "delay", r.qprefix)
 		publishing.Expiration = r.qconf[routeName].DelayQueueExpirationInMS
 		payload.RetryCount = payload.RetryCount + 1
 	}
@@ -195,16 +185,16 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	queueTypes := []string{"instant", "delay", "dead_letter"}
 	for _, queueType := range queueTypes {
 		var args amqp.Table
-		for route, _ := range r.qconf {
+		for route := range r.qconf {
 			if queueType == "delay" {
-				args = amqp.Table{"x-dead-letter-exchange": constructExchangeName(route, "instant")}
+				args = amqp.Table{"x-dead-letter-exchange": constructExchangeName(route, "instant", r.qprefix)}
 			}
-			exchangeName := constructExchangeName(route, queueType)
+			exchangeName := constructExchangeName(route, queueType, r.qprefix)
 			if exchangeDeclareErr := channel.ExchangeDeclare(exchangeName, amqp.ExchangeFanout, true, false, false, false, nil); exchangeDeclareErr != nil {
 				return exchangeDeclareErr
 			}
 
-			queueName := constructQueueName(route, queueType)
+			queueName := constructQueueName(route, queueType, r.qprefix)
 			if _, queueDeclareErr := channel.QueueDeclare(queueName, true, false, false, false, args); queueDeclareErr != nil {
 				return queueDeclareErr
 			}

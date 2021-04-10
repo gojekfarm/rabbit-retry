@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-func constructQueueName(routeName string, queueType string) string {
-	return fmt.Sprintf("%s_%s_%s_queue", "ziggurat", routeName, queueType)
+func constructQueueName(routeName string, queueType string, prefix string) string {
+	return fmt.Sprintf("%s_%s_%s_queue", prefix, routeName, queueType)
 }
 
-func constructExchangeName(route string, queueType string) string {
-	return fmt.Sprintf("%s_%s_%s_exchange", "ziggurat", route, queueType)
+func constructExchangeName(route string, queueType string, prefix string) string {
+	return fmt.Sprintf("%s_%s_%s_exchange", prefix, route, queueType)
 }
 
 func encodeMessage(message RabbitMQPayload) (*bytes.Buffer, error) {
