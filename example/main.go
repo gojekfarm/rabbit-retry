@@ -1,16 +1,14 @@
-//+build ignore
-
 package main
 
 import (
 	"context"
+	"github.com/gojekfarm/ziggurat/mw/proclog"
 	"sync"
 
 	"github.com/gojekfarm/ziggurat"
 	"github.com/gojekfarm/ziggurat-rabbitmq/rmq"
 	"github.com/gojekfarm/ziggurat/kafka"
 	"github.com/gojekfarm/ziggurat/logger"
-	"github.com/gojekfarm/ziggurat/mw"
 	"github.com/gojekfarm/ziggurat/router"
 )
 
@@ -18,13 +16,15 @@ func main() {
 	l := logger.NewJSONLogger(logger.LevelInfo)
 	ctx := context.Background()
 	rabbitMQ := rmq.New(
-		[]string{"amqp://user:bitnami@localhost:5672"},
+		[]string{"localhost:5672"},
+		"user",
+		"bitnami",
 		rmq.QueueConfig{
 			"plain-text-log": {
 				RetryCount:               2,
 				DelayQueueExpirationInMS: "500",
 			},
-		}, l)
+		}, rmq.WithLogger(l))
 
 	kafkaStreams := &kafka.Streams{
 		StreamConfig: kafka.StreamConfig{{
@@ -41,7 +41,7 @@ func main() {
 	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) error {
 		return ziggurat.ErrProcessingFailed{Action: "retry"}
 	})
-	statusLogger := mw.ProcessingStatusLogger{Logger: l}
+	statusLogger := proclog.ProcLogger{Logger: l}
 	handler := r.Compose(rabbitMQ.Retrier, statusLogger.LogStatus)
 
 	zigKafka := &ziggurat.Ziggurat{}

@@ -38,11 +38,20 @@ func WithLogger(l ziggurat.StructuredLogger) Opts {
 	}
 }
 
-func New(hosts []string, queueConfig QueueConfig, opts ...Opts) *Retry {
+func New(hosts []string, username, password string, queueConfig QueueConfig, opts ...Opts) *Retry {
+
+	amqpStyleURLs := make([]string, 0, len(hosts))
+
+	for _, host := range hosts {
+		url := fmt.Sprintf("amqp://%s:%s@%s", username, password, host)
+		amqpStyleURLs = append(amqpStyleURLs, url)
+	}
+
 	r := &Retry{
-		hosts: hosts,
+		hosts: amqpStyleURLs,
 		qconf: queueConfig,
 	}
+
 	for _, opt := range opts {
 		opt(r)
 	}
