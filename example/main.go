@@ -1,3 +1,5 @@
+//+build ignore
+
 package main
 
 import (
@@ -16,13 +18,12 @@ func main() {
 	l := logger.NewJSONLogger(logger.LevelInfo)
 	ctx := context.Background()
 	rabbitMQ := rmq.New(
-		[]string{"localhost:5672"},
-		"user",
-		"bitnami",
-		rmq.QueueConfig{
-			"plain-text-log": {
-				RetryCount:               2,
-				DelayQueueExpirationInMS: "500",
+		&rmq.Config{
+			Hosts:       []string{"localhost:5672"},
+			Username:    "user",
+			Password:    "bitnami",
+			QueuePrefix: "example_app",
+			QueueConfig: []rmq.QueueConfig{{DelayQueueExpirationInMS: "2000", RouteKey: "plain-text-log", RetryCount: 2},
 			},
 		}, rmq.WithLogger(l))
 
