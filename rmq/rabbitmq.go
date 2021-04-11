@@ -36,6 +36,8 @@ func WithLogger(l ziggurat.StructuredLogger) Opts {
 
 func New(c *Config, opts ...Opts) *Retry {
 
+	c.validate()
+
 	r := &Retry{
 		hosts:   c.generateAMQPURLS(),
 		qconf:   c.transformQueueConfig(),

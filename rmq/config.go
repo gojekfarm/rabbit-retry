@@ -36,18 +36,18 @@ func (c *Config) transformQueueConfig() map[string]QueueConfig {
 
 func (c *Config) validate() {
 	if len(c.Hosts) == 0 {
-		panic("hosts cannot be empty")
+		panic("invalid rabbitmq config: hosts cannot be empty")
 	}
 	if len(c.QueueConfig) == 0 {
-		panic("queue config cannot be empty")
+		panic("invalid rabbitmq config: queue config cannot be empty")
 	}
 	if c.Username == "" || c.Password == "" {
-		panic("username OR password cannot be empty")
+		panic("invalid rabbitmq config: username OR password cannot be empty")
 	}
 
 	for _, q := range c.QueueConfig {
 		if q.RouteKey == "" {
-			panic("`QueueConfig.RouteKey` cannot be empty")
+			panic("invalid rabbitmq config: `QueueConfig.RouteKey` cannot be empty")
 		}
 	}
 
