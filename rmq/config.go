@@ -44,6 +44,13 @@ func (c *Config) validate() {
 	if c.Username == "" || c.Password == "" {
 		panic("username OR password cannot be empty")
 	}
+
+	for _, q := range c.QueueConfig {
+		if q.RouteKey == "" {
+			panic("`QueueConfig.RouteKey` cannot be empty")
+		}
+	}
+
 }
 
 func (c *Config) getQPrefix() string {
