@@ -95,6 +95,7 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 	for routeName := range r.qconf {
 		queueName := constructQueueName(routeName, "instant", r.qprefix)
 		ctag := fmt.Sprintf("%s_%s_%s", queueName, r.qprefix, "ctag")
+		r.logger.Info("creating rabbitmq consumer", map[string]interface{}{"ctag": ctag, "queue-name": queueName})
 		c, err := createConsumer(ctx, r.consumerDialer, ctag, queueName, handler, r.logger)
 		if err != nil {
 			return err
