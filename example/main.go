@@ -42,7 +42,7 @@ func main() {
 	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) error {
 		return ziggurat.ErrProcessingFailed{Action: "retry"}
 	})
-	
+
 	statusLogger := proclog.ProcLogger{Logger: l}
 	handler := r.Compose(rabbitMQ.Retrier, statusLogger.LogStatus)
 
