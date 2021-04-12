@@ -20,6 +20,7 @@ type Opts func(r *Retry)
 
 type Retry struct {
 	hosts          []string
+	hostsRaw       []string
 	dialer         *amqpextra.Dialer
 	consumerDialer *amqpextra.Dialer
 	handler        ziggurat.Handler
@@ -39,9 +40,10 @@ func New(c *Config, opts ...Opts) *Retry {
 	c.validate()
 
 	r := &Retry{
-		hosts:   c.generateAMQPURLS(),
-		qconf:   c.transformQueueConfig(),
-		qprefix: c.getQPrefix(),
+		hosts:    c.generateAMQPURLS(),
+		qconf:    c.transformQueueConfig(),
+		hostsRaw: c.Hosts,
+		qprefix:  c.getQPrefix(),
 	}
 
 	for _, opt := range opts {
@@ -163,8 +165,8 @@ func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
 
 func (r *Retry) initPublisher(ctx context.Context) error {
 	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, 30*time.Second)
-	args := map[string]interface{}{"hosts": strings.Join(r.hosts, ",")}
-	r.logger.Info("dialing rabbitmq server", args)
+	args := map[string]interface{}{"hosts": strings.Join(r.hostsRaw, ",")}
+	r.logger.Info("dialing rabbitmq servers", args)
 	go func() {
 		<-ctxWithTimeout.Done()
 		cancelFunc()
