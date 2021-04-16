@@ -55,34 +55,29 @@ func New(c *Config, opts ...Opts) *Retry {
 	return r
 }
 
-func (r *Retry) Handle(ctx context.Context, event ziggurat.Event) error {
-	err, ok := (r.handler.Handle(ctx, event)).(ziggurat.ErrProcessingFailed)
-	if ok && err.Action == "retry" {
-		r.logger.Info("rabbitmq retrying message")
-		err := r.retry(ctx, event)
-		r.logger.Error("error retrying message", err)
-	}
-	return err
-}
+func (r *Retry) Retry(handler ziggurat.Handler) ziggurat.Handler {
+	f := ziggurat.HandlerFunc(func(ctx context.Context, messageEvent ziggurat.Event) interface{} {
 
-func (r *Retry) Retrier(handler ziggurat.Handler) ziggurat.Handler {
-	f := ziggurat.HandlerFunc(func(ctx context.Context, messageEvent ziggurat.Event) error {
 		if r.dialer == nil {
-			panic("dialer nil error: run the `RunPublisher` method")
+			panic("dialer nil error: run the `Run` method")
 		}
 
-		err, ok := (handler.Handle(ctx, messageEvent)).(ziggurat.ErrProcessingFailed)
-		if ok && err.Action == "retry" {
+		retVal := handler.Handle(ctx, messageEvent)
+
+		code, ok := retVal.(string)
+		if ok && code == RetryMessage {
 			r.logger.Info("rabbitmq retrying message")
 			retryErr := r.retry(ctx, messageEvent)
 			r.logger.Error("error retrying message", retryErr)
 		}
-		return err
+
+		return retVal
+
 	})
 	return f
 }
 
-func (r *Retry) RunPublisher(ctx context.Context) error {
+func (r *Retry) Run(ctx context.Context) error {
 	return r.initPublisher(ctx)
 }
 

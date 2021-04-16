@@ -49,7 +49,7 @@ func main() {
 	zigKafka := &ziggurat.Ziggurat{}
 	zigRabbit := &ziggurat.Ziggurat{}
 
-	l.Error("error starting publishers", rabbitMQ.RunPublisher(ctx))
+	l.Error("error starting publishers", rabbitMQ.Run(ctx))
 
 	var wg sync.WaitGroup
 	wg.Add(2)
