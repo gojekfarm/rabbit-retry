@@ -1,1 +1,1 @@
-# ziggurat-rabbitmq
+# rabbit-retry
