@@ -1,15 +1,16 @@
-//+build ignore
-
 package main
 
 import (
 	"context"
+
+	"github.com/gojekfarm/rabbit-retry/rmq"
+
 	"sync"
 
 	"github.com/gojekfarm/ziggurat/mw/proclog"
 
 	"github.com/gojekfarm/ziggurat"
-	"github.com/gojekfarm/ziggurat-rabbitmq/rmq"
+
 	"github.com/gojekfarm/ziggurat/kafka"
 	"github.com/gojekfarm/ziggurat/logger"
 	"github.com/gojekfarm/ziggurat/router"
@@ -24,7 +25,13 @@ func main() {
 			Username:    "user",
 			Password:    "bitnami",
 			QueuePrefix: "example_app",
-			QueueConfig: []rmq.QueueConfig{{DelayQueueExpirationInMS: "2000", RouteKey: "plain-text-log", RetryCount: 2}},
+			QueueConfig: []rmq.QueueConfig{
+				{
+					DelayQueueExpirationInMS: "2000",
+					RouteKey:                 "plain-text-log",
+					RetryCount:               2,
+				},
+			},
 		}, rmq.WithLogger(l))
 
 	kafkaStreams := &kafka.Streams{
@@ -39,12 +46,12 @@ func main() {
 	}
 	r := router.New()
 
-	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) error {
-		return ziggurat.ErrProcessingFailed{Action: "retry"}
+	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) interface{} {
+		return rmq.RetryMessage
 	})
 
 	statusLogger := proclog.ProcLogger{Logger: l}
-	handler := r.Compose(rabbitMQ.Retrier, statusLogger.LogStatus)
+	handler := r.Compose(rabbitMQ.Retry, statusLogger.LogStatus)
 
 	zigKafka := &ziggurat.Ziggurat{}
 	zigRabbit := &ziggurat.Ziggurat{}

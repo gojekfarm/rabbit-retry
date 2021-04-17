@@ -1,4 +1,4 @@
-module github.com/gojekfarm/ziggurat-rabbitmq
+module github.com/gojekfarm/rabbit-retry
 
 go 1.16
 
