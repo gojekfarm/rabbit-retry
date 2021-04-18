@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,22 +57,21 @@ func New(c *Config, opts ...Opts) *Retry {
 }
 
 func (r *Retry) Retry(handler ziggurat.Handler) ziggurat.Handler {
-	f := ziggurat.HandlerFunc(func(ctx context.Context, messageEvent ziggurat.Event) interface{} {
+	f := ziggurat.HandlerFunc(func(ctx context.Context, messageEvent *ziggurat.Event) error {
 
 		if r.dialer == nil {
 			panic("dialer nil error: run the `Run` method")
 		}
 
-		retVal := handler.Handle(ctx, messageEvent)
+		err := handler.Handle(ctx, messageEvent)
 
-		//code, ok := retVal.(string)
-		//if ok && code == RetryMessage {
-		//	r.logger.Info("rabbitmq retrying message")
-		//	retryErr := r.retry(ctx, messageEvent)
-		//	r.logger.Error("error retrying message", retryErr)
-		//}
+		if err == ziggurat.Retry {
+			r.logger.Info("rabbitmq retrying message")
+			retryErr := r.retry(ctx, messageEvent)
+			r.logger.Error("error retrying message", retryErr)
+		}
 
-		return retVal
+		return err
 
 	})
 	return f
@@ -117,7 +117,20 @@ func (r *Retry) Stream(ctx context.Context, handler ziggurat.Handler) error {
 	return nil
 }
 
-func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
+func getRetryCount(e *ziggurat.Event) int {
+	var retryCount int
+	countVal := e.Headers["x-rabbitmq-retry-count"]
+	if countVal == "" {
+		return retryCount
+	}
+	count, err := strconv.Atoi(countVal)
+	if err != nil {
+		panic(err)
+	}
+	return count
+}
+
+func (r *Retry) retry(ctx context.Context, event *ziggurat.Event) error {
 	pub, pubCreateError := r.dialer.Publisher(publisher.WithContext(ctx))
 	if pubCreateError != nil {
 		return pubCreateError
@@ -127,28 +140,18 @@ func (r *Retry) retry(ctx context.Context, event ziggurat.Event) error {
 	publishing := amqp.Publishing{}
 	message := publisher.Message{}
 
-	routeName := event.Headers()[ziggurat.HeaderMessageRoute]
-	var payload RabbitMQPayload
-	if eventCast, ok := event.(RabbitMQPayload); ok {
-		payload = eventCast
-	} else {
-		payload = RabbitMQPayload{
-			MessageVal:     event.Value(),
-			MessageHeaders: event.Headers(),
-			RetryCount:     0,
-		}
-	}
+	routeName := event.Path
+	retryCount := getRetryCount(event)
 
-	if payload.RetryCount >= r.qconf[routeName].RetryCount {
+	if retryCount >= r.qconf[routeName].RetryCount {
 		message.Exchange = constructExchangeName(routeName, "dead_letter", r.qprefix)
 		publishing.Expiration = ""
 	} else {
 		message.Exchange = constructExchangeName(routeName, "delay", r.qprefix)
 		publishing.Expiration = r.qconf[routeName].DelayQueueExpirationInMS
-		payload.RetryCount = payload.RetryCount + 1
+		event.Headers["x-rabbitmq-retry-count"] = strconv.Itoa(retryCount + 1)
 	}
-
-	buff, err := encodeMessage(payload)
+	buff, err := encodeMessage(event)
 	if err != nil {
 		return err
 	}

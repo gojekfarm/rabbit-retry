@@ -4,22 +4,25 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-
 	"github.com/gojekfarm/ziggurat"
 	"github.com/makasim/amqpextra"
 	"github.com/makasim/amqpextra/consumer"
 	"github.com/streadway/amqp"
+	"time"
 )
 
-var decodeMessage = func(body []byte) (RabbitMQPayload, error) {
+var decodeMessage = func(body []byte) (*ziggurat.Event, error) {
 	buff := bytes.Buffer{}
 	buff.Write(body)
 	decoder := gob.NewDecoder(&buff)
-	messageEvent := RabbitMQPayload{}
-	if decodeErr := decoder.Decode(&messageEvent); decodeErr != nil {
-		return messageEvent, decodeErr
+	var event ziggurat.Event
+	if decodeErr := decoder.Decode(&event); decodeErr != nil {
+		return nil, decodeErr
 	}
-	return messageEvent, nil
+
+	event.EventType = "amqp"
+	event.ReceivedTimestamp = time.Now()
+	return &event, nil
 }
 
 var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string, queueName string, msgHandler ziggurat.Handler, l ziggurat.StructuredLogger) (*consumer.Consumer, error) {
@@ -42,7 +45,7 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 				l.Error("error decoding message", err)
 				return msg.Reject(true)
 			}
-			msgHandler.Handle(ctx, msgEvent)
+			l.Error("error processing amqp message", msgHandler.Handle(ctx, msgEvent))
 			return msg.Ack(false)
 		}))}
 	return d.Consumer(options...)

@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-
-	"github.com/gojekfarm/rabbit-retry/rmq"
+	"github.com/gojekfarm/ziggurat/mw/event"
 
 	"sync"
 
-	"github.com/gojekfarm/ziggurat/mw/proclog"
+	"github.com/gojekfarm/rabbit-retry/rmq"
 
 	"github.com/gojekfarm/ziggurat"
 
@@ -46,12 +45,11 @@ func main() {
 	}
 	r := router.New()
 
-	r.HandleFunc("plain-text-log", func(ctx context.Context, event ziggurat.Event) interface{} {
-		return rmq.RetryMessage
+	r.HandleFunc("plain-text-log", func(ctx context.Context, event *ziggurat.Event) error {
+		return ziggurat.Retry
 	})
 
-	statusLogger := proclog.ProcLogger{Logger: l}
-	handler := r.Compose(rabbitMQ.Retry, statusLogger.LogStatus)
+	handler := r.Compose(rabbitMQ.Retry, event.Logger(l))
 
 	zigKafka := &ziggurat.Ziggurat{}
 	zigRabbit := &ziggurat.Ziggurat{}
