@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"time"
+
 	"github.com/gojekfarm/ziggurat"
 	"github.com/makasim/amqpextra"
 	"github.com/makasim/amqpextra/consumer"
 	"github.com/streadway/amqp"
-	"time"
 )
 
 var decodeMessage = func(body []byte) (*ziggurat.Event, error) {

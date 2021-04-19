@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/gojekfarm/ziggurat/mw/event"
 
 	"sync"
