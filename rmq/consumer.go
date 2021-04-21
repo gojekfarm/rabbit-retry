@@ -21,8 +21,6 @@ var decodeMessage = func(body []byte) (*ziggurat.Event, error) {
 		return nil, decodeErr
 	}
 
-	event.EventType = "amqp"
-	event.ReceivedTimestamp = time.Now()
 	return &event, nil
 }
 
@@ -46,6 +44,9 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 				l.Error("error decoding message", err)
 				return msg.Reject(true)
 			}
+			msgEvent.EventType = "amqp"
+			msgEvent.ProducerTimestamp = msg.Timestamp
+			msgEvent.ReceivedTimestamp = time.Now()
 			l.Error("error processing amqp message", msgHandler.Handle(ctx, msgEvent))
 			return msg.Ack(false)
 		}))}
