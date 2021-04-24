@@ -7,8 +7,6 @@ import (
 
 	"github.com/gojekfarm/ziggurat/mw/event"
 
-	"sync"
-
 	"github.com/gojekfarm/rabbit-retry/rmq"
 
 	"github.com/gojekfarm/ziggurat"
@@ -19,6 +17,7 @@ import (
 )
 
 func main() {
+	var z ziggurat.Ziggurat
 	l := logger.NewJSONLogger(logger.LevelInfo)
 	ctx := context.Background()
 	rabbitMQ := rmq.New(
@@ -36,7 +35,7 @@ func main() {
 			},
 		}, rmq.WithLogger(l))
 
-	kafkaStreams := &kafka.Streams{
+	kafkaStreams := kafka.Streams{
 		StreamConfig: kafka.StreamConfig{{
 			BootstrapServers: "localhost:9092",
 			ConsumerCount:    1,
@@ -54,20 +53,12 @@ func main() {
 
 	handler := r.Compose(rabbitMQ.Retry, event.Logger(l))
 
-	zigKafka := &ziggurat.Ziggurat{}
-	zigRabbit := &ziggurat.Ziggurat{}
+	z.StartFunc(func(ctx context.Context) {
+		l.Error("error running rabbitmq", rabbitMQ.Run(ctx))
+	})
 
-	l.Error("error starting publishers", rabbitMQ.Run(ctx))
+	if err := z.RunAll(ctx, handler, &kafkaStreams, rabbitMQ); err != nil {
+		l.Error("error running streams", err)
+	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		l.Error("", zigKafka.Run(ctx, kafkaStreams, handler))
-		wg.Done()
-	}()
-	go func() {
-		l.Error("", zigRabbit.Run(ctx, rabbitMQ, handler))
-		wg.Done()
-	}()
-	wg.Wait()
 }

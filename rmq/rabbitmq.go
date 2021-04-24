@@ -167,6 +167,7 @@ func (r *Retry) initPublisher(ctx context.Context) error {
 	r.logger.Info("dialing rabbitmq servers", args)
 	go func() {
 		<-ctxWithTimeout.Done()
+		r.logger.Error("rabbitmq publisher init error:", ctx.Err())
 		cancelFunc()
 	}()
 	dialer, cfgErr := amqpextra.NewDialer(
