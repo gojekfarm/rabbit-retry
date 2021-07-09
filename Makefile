@@ -4,4 +4,5 @@ format:
 	@goimports -l -w ./
 
 run-example:
-	go run example/main.go
+	go build -o rmq-example example/main.go
+	./rmq-example

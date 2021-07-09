@@ -49,7 +49,7 @@ func main() {
 	r := router.New()
 
 	r.HandleFunc("plain-text-log", func(ctx context.Context, event *ziggurat.Event) error {
-		return ziggurat.Retry
+		return rmq.RetryErr
 	})
 
 	handler := r.Compose(rabbitMQ.Retry, event.Logger(l))

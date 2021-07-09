@@ -65,7 +65,7 @@ func (r *Retry) Retry(handler ziggurat.Handler) ziggurat.Handler {
 
 		err := handler.Handle(ctx, messageEvent)
 
-		if err == ziggurat.Retry {
+		if err == RetryErr {
 			r.logger.Info("rabbitmq retrying message")
 			retryErr := r.retry(ctx, messageEvent)
 			r.logger.Error("error retrying message", retryErr)
