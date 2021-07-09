@@ -46,6 +46,8 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 			}
 			msgEvent.EventType = "amqp"
 			msgEvent.ProducerTimestamp = msg.Timestamp
+			msgEvent.Headers["x-rabbitmq-queue-name"] = msg.Exchange
+			msgEvent.Headers["x-rabbitmq-expiry"] = msg.Expiration
 			msgEvent.ReceivedTimestamp = time.Now()
 			l.Error("error processing amqp message", msgHandler.Handle(ctx, msgEvent))
 			return msg.Ack(false)
