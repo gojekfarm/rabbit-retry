@@ -20,6 +20,7 @@ func main() {
 	var z ziggurat.Ziggurat
 	l := logger.NewJSONLogger(logger.LevelInfo)
 	ctx := context.Background()
+
 	rabbitMQ := rmq.New(
 		&rmq.Config{
 			Hosts:       []string{"localhost:5672"},
