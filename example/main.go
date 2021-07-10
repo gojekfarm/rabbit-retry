@@ -28,10 +28,9 @@ func main() {
 			Password:    "bitnami",
 			QueuePrefix: "example_app",
 			QueueConfig: []rmq.QueueConfig{
-				{
-					DelayQueueExpirationInMS: "2000",
-					RouteKey:                 "plain-text-log",
-					RetryCount:               2,
+				{DelayQueueExpirationInMS: "2000",
+					RouteKey:   "plain-text-log",
+					RetryCount: 2,
 				},
 			},
 		}, rmq.WithLogger(l))
