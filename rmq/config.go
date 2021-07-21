@@ -5,7 +5,7 @@ import "fmt"
 type QueueConfig struct {
 	RetryCount               int
 	DelayQueueExpirationInMS string
-	RouteKey                 string
+	ConsumerKey              string
 }
 
 type Config struct {
@@ -29,7 +29,7 @@ func (c *Config) generateAMQPURLS() []string {
 func (c *Config) transformQueueConfig() map[string]QueueConfig {
 	qconfMap := make(map[string]QueueConfig, len(c.QueueConfig))
 	for _, qconf := range c.QueueConfig {
-		qconfMap[qconf.RouteKey] = qconf
+		qconfMap[qconf.ConsumerKey] = qconf
 	}
 	return qconfMap
 }
@@ -46,8 +46,8 @@ func (c *Config) validate() {
 	}
 
 	for _, q := range c.QueueConfig {
-		if q.RouteKey == "" {
-			panic("invalid rabbitmq config: `QueueConfig.RouteKey` cannot be empty")
+		if q.ConsumerKey == "" {
+			panic("invalid rabbitmq config: `QueueConfig.ConsumerKey` cannot be empty")
 		}
 	}
 
