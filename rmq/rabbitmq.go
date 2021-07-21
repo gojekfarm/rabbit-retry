@@ -2,6 +2,7 @@ package rmq
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -151,12 +152,12 @@ func (r *Retry) retry(ctx context.Context, event *ziggurat.Event) error {
 		publishing.Expiration = r.qconf[routeName].DelayQueueExpirationInMS
 		event.Headers["x-rabbitmq-retry-count"] = strconv.Itoa(retryCount + 1)
 	}
-	buff, err := encodeMessage(event)
+	bb, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 
-	publishing.Body = buff.Bytes()
+	publishing.Body = bb
 	message.Publishing = publishing
 	return pub.Publish(message)
 }

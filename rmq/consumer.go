@@ -1,9 +1,8 @@
 package rmq
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
+	"encoding/json"
 	"time"
 
 	"github.com/gojekfarm/ziggurat"
@@ -11,18 +10,6 @@ import (
 	"github.com/makasim/amqpextra/consumer"
 	"github.com/streadway/amqp"
 )
-
-var decodeMessage = func(body []byte) (*ziggurat.Event, error) {
-	buff := bytes.Buffer{}
-	buff.Write(body)
-	decoder := gob.NewDecoder(&buff)
-	var event ziggurat.Event
-	if decodeErr := decoder.Decode(&event); decodeErr != nil {
-		return nil, decodeErr
-	}
-
-	return &event, nil
-}
 
 var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string, queueName string, msgHandler ziggurat.Handler, l ziggurat.StructuredLogger) (*consumer.Consumer, error) {
 	options := []consumer.Option{
@@ -39,7 +26,8 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 		consumer.WithQueue(queueName),
 		consumer.WithHandler(consumer.HandlerFunc(func(ctx context.Context, msg amqp.Delivery) interface{} {
 			l.Info("rabbitmq processing message from queue", map[string]interface{}{"queue-name": queueName})
-			msgEvent, err := decodeMessage(msg.Body)
+			var msgEvent ziggurat.Event
+			err := json.Unmarshal(msg.Body, &msgEvent)
 			if err != nil {
 				l.Error("error decoding message", err)
 				return msg.Reject(true)
@@ -50,7 +38,7 @@ var createConsumer = func(ctx context.Context, d *amqpextra.Dialer, ctag string,
 			msgEvent.Headers["x-rabbitmq-expiry"] = msg.Expiration
 			msgEvent.Headers["x-rabbitmq-ctag"] = msg.ConsumerTag
 			msgEvent.ReceivedTimestamp = time.Now()
-			l.Error("error processing amqp message", msgHandler.Handle(ctx, msgEvent))
+			l.Error("error processing amqp message", msgHandler.Handle(ctx, &msgEvent))
 			return msg.Ack(false)
 		}))}
 	return d.Consumer(options...)
